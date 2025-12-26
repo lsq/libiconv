@@ -105,6 +105,7 @@ for file in \
   fcntl-o.m4 \
   host-cpu-c-abi.m4 \
   lib-ld.m4 \
+  libdl.m4 \
   relocatable.m4 \
   relocatable-lib.m4 \
   visibility.m4 \
