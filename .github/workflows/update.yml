@@ -1,0 +1,113 @@
+name: AutoUpdate
+on:
+  schedule:
+    - cron: "30 0/8 * * 0/2"
+  workflow_dispatch:
+
+  push:
+    paths:
+      - '.github/workflows/update.yml'
+#
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+      - name: update from upstream
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git log -10 --oneline
+          git remote add upstream git://git.savannah.gnu.org/libiconv.git
+          git fetch upstream
+          git status
+          git checkout master
+          # git rebase upstream master
+          # git push origin master
+          # 检查是否有新提交
+          if ! git merge-base --is-ancestor HEAD upstream/master; then
+            # 本地不是 upstream/master 的祖先 → 有本地提交，需 rebase
+            # git rebase -X theirs upstream/master
+            git rebase -X ours upstream/master
+            # 设置 Git 用户名和邮箱（CI 中通常未配置）
+            # git config user.name "CI Bot"
+            # git config user.email "ci-bot@example.com"
+            # 强制推送（确保你有权限且知道后果）
+            git push --force-with-lease origin master
+          else
+            # 可 fast-forward，直接 reset 即可（更安全）
+            git reset --hard upstream/master
+            git push origin master
+          fi
+          #if [ "$(git cherry -v)" -eq "" ]; then
+          #  echo "no needed update"
+          #  echo "pushflag=0" >> $env:GITHUB_ENV
+          #else
+          #  echo "need to update ..."
+          #  echo "pushflag=1" >> $env:GITHUB_ENV
+          #fi
+          #- name: Push changes
+          #  if: ${{ env.pushflag == 1 }}
+          #  uses: ad-m/github-push-action@master
+          #  with:
+          #    github_token: ${{ secrets.GITHUB_TOKEN }}
+          #    force: true
+          #    # force_with_lease: true
+      - name: release
+        run: |
+          # set -e  # 遇到错误立即退出
+          # === 配置区 ===
+          RELEASE_BRANCH="release"      # 替换为你的 release 分支名，或通过环境变量传入
+          UPSTREAM_REPO="upstream"           # 假设 upstream 已添加为 remote
+          REMOTE_NAME="origin"               # 你要 push 到的远程仓库名
+          # 可选：从环境变量覆盖
+          #: ${RELEASE_BRANCH:=${CI_COMMIT_REF_NAME}}  # 例如在 GitLab CI 中可用
+          # 如果你在 GitHub Actions 中，可使用: RELEASE_BRANCH=${{ github.event.inputs.release_branch }}
+          echo "目标 release 分支: $RELEASE_BRANCH"
+          # === 步骤 1: 设置 Git 用户信息（CI 环境通常需要）===
+          # git config --global user.email "ci-bot@example.com"
+          # git config --global user.name "CI Bot"
+          # === 步骤 2: 获取 upstream 最新代码 ===
+          echo "Fetching from upstream..."
+          git fetch "$UPSTREAM_REPO" master
+          # === 步骤 3: 检查本地是否已有该 release 分支 ===
+          if git show-ref --verify --quiet "refs/heads/$RELEASE_BRANCH"; then
+              echo "分支 $RELEASE_BRANCH 已存在，切换并更新..."
+              git checkout "$RELEASE_BRANCH"
+              # 尝试 rebase 到 upstream/master（保留 autopull 提交）
+              # 注意：如果冲突可能失败，根据需求可改用 merge 或强制 reset
+              echo "尝试 rebase 到 upstream/master..."
+              if ! git rebase "$UPSTREAM_REPO/master"; then
+                  echo "Rebase 失败，回退并强制重置到 upstream/master（丢弃本地提交）"
+                  git reset --hard "$UPSTREAM_REPO/master"
+              fi
+          else
+              echo "分支 $RELEASE_BRANCH 不存在，基于 upstream/master 创建..."
+              git checkout -b "$RELEASE_BRANCH" "$UPSTREAM_REPO/master"
+          fi
+          # === 步骤 4: 运行 autopull.sh 并提交生成的文件 ===
+          if [ -d "./gnulib" ]; then
+            rm -rf ./gnulib
+          fi
+          echo "运行 ./autopull.sh ..."
+          ./autopull.sh
+          if [ -d "./gnulib/.git" ]; then
+            rm -rf ./gnulib/.git
+          fi
+          # 添加 autopull 产生的所有新文件或修改（注意：不要 add 所有，只 add 新增/修改的）
+          # 使用 -A 会包含删除，但通常 autopull 不会删文件；也可用 git status --porcelain 过滤
+          git add --all
+          # 检查是否有变更
+          if ! git diff-index --quiet HEAD --; then
+              echo "检测到 autopull 产生的变更，提交中..."
+              git commit -m "add gnulib-tool"
+          else
+              echo "autopull.sh 未产生任何变更，跳过提交。"
+          fi
+          # === 步骤 5: 推送到远程仓库 ===
+          echo "推送 $RELEASE_BRANCH 到 $REMOTE_NAME..."
+          # git push "$REMOTE_NAME" "$RELEASE_BRANCH" --force-with-lease
+          git push "$REMOTE_NAME" "$RELEASE_BRANCH" --force
+          echo "✅ CI 脚本执行完成！"
