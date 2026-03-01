@@ -1,0 +1,13 @@
+Files:
+tests/test-filemode.c
+tests/macros.h
+
+Depends-on:
+unistd-h
+streq
+
+configure.ac:
+
+Makefile.am:
+TESTS += test-filemode
+check_PROGRAMS += test-filemode
