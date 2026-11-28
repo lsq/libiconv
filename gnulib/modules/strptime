@@ -1,0 +1,25 @@
+Description:
+Convert a string representation of time to a tm structure.
+
+Status:
+deprecated
+
+Notice:
+This module is deprecated. Use the module 'strptime-posix' instead.
+
+Files:
+
+Depends-on:
+strptime-posix
+
+configure.ac:
+
+Makefile.am:
+
+Include:
+<time.h>
+
+License:
+LGPLv2+
+
+Maintainer:

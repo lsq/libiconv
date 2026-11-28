@@ -1,0 +1,34 @@
+Description:
+fchdir() function: change current directory, given an open file descriptor.
+
+Files:
+lib/fchdir.c
+m4/fchdir.m4
+
+Depends-on:
+unistd-h
+dirinfo-abstract [test $HAVE_FCHDIR = 0 || test $REPLACE_FCHDIR = 1]
+chdir            [test $HAVE_FCHDIR = 0 || test $REPLACE_FCHDIR = 1]
+
+configure.ac:
+gl_FUNC_FCHDIR
+gl_CONDITIONAL([GL_COND_OBJ_FCHDIR],
+               [test $HAVE_FCHDIR = 0 || test $REPLACE_FCHDIR = 1])
+AM_COND_IF([GL_COND_OBJ_FCHDIR], [
+  gl_PREREQ_FCHDIR
+])
+gl_UNISTD_MODULE_INDICATOR([fchdir])
+
+Makefile.am:
+if GL_COND_OBJ_FCHDIR
+lib_SOURCES += fchdir.c
+endif
+
+Include:
+<unistd.h>
+
+License:
+LGPL
+
+Maintainer:
+all
